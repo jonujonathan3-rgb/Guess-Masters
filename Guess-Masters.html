@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Guess Masters Pro 🎮</title>
+
+<style>
+body {
+    font-family: Arial;
+    text-align: center;
+    background: linear-gradient(135deg, #141e30, #243b55);
+    color: white;
+}
+
+.game-box {
+    background: rgba(255,255,255,0.1);
+    padding: 20px;
+    margin-top: 40px;
+    display: inline-block;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 420px;
+}
+
+input, button, select {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 8px;
+    border: none;
+}
+
+button {
+    background: #00c9ff;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+.success { color: #00ffcc; }
+.shake { animation: shake 0.3s; }
+
+@keyframes shake {
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎮 Guess Masters Pro</h1>
+
+<div class="game-box">
+
+<!-- SETUP -->
+<div id="setup">
+<input id="name" placeholder="Your name"><br>
+
+<select id="difficulty">
+<option value="50">Easy</option>
+<option value="100">Medium</option>
+<option value="500">Hard</option>
+</select><br>
+
+<button onclick="startGame()">Start</button>
+</div>
+
+<!-- GAME -->
+<div id="game" style="display:none;">
+<h3 id="player"></h3>
+
+<p id="info"></p>
+<p>⏱️ <span id="timer"></span> | ❤️ <span id="lives"></span></p>
+<p>🔥 Streak: <span id="streak"></span></p>
+<p>🏆 Score: <span id="score"></span></p>
+
+<input type="number" id="guessInput" placeholder="Enter guess">
+<button onclick="checkGuess()">Guess</button>
+
+<br>
+<button onclick="useHint()">💡 Hint (-20)</button>
+<button onclick="extraLife()">❤️ Life (-30)</button>
+
+<p id="message"></p>
+</div>
+
+<!-- BREAK SCREEN -->
+<div id="breakScreen" style="display:none;">
+    <h2>⏸️ Take a Break!</h2>
+    <p>You reached Level <span id="breakLevel"></span> 🎉</p>
+    <p>🎁 Bonus: +50 Score</p>
+    <button onclick="continueGame()">Continue ▶️</button>
+</div>
+
+</div>
+
+<!-- Sounds -->
+<audio id="correctSound" src="https://www.soundjay.com/buttons/sounds/button-4.mp3"></audio>
+<audio id="wrongSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
+
+<script>
+let number, attempts, maxAttempts, maxNumber;
+let level = 1, score = 0, streak = 0, lives = 3;
+let timeLeft, timer;
+
+// ENTER key
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("guessInput").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") checkGuess();
+    });
+});
+
+function startGame() {
+    const name = document.getElementById("name").value || "Player";
+    maxNumber = Number(document.getElementById("difficulty").value);
+
+    document.getElementById("player").textContent = name;
+    document.getElementById("setup").style.display = "none";
+    document.getElementById("game").style.display = "block";
+
+    loadGame();
+    initLevel();
+}
+
+function initLevel() {
+    number = Math.floor(Math.random() * maxNumber) + 1;
+    attempts = 0;
+    maxAttempts = 8 + level;
+
+    startTimer(30);
+    updateUI();
+}
+
+function updateUI() {
+    document.getElementById("info").textContent =
+        `Level ${level} | Range: 1-${maxNumber} | Attempts: ${maxAttempts - attempts}`;
+    document.getElementById("score").textContent = score;
+    document.getElementById("streak").textContent = streak;
+    document.getElementById("lives").textContent = lives;
+}
+
+function checkGuess() {
+    const input = document.getElementById("guessInput");
+    const guess = Number(input.value);
+    const msg = document.getElementById("message");
+
+    if (!guess) {
+        msg.textContent = "Enter valid number!";
+        return;
+    }
+
+    attempts++;
+
+    if (guess < number) {
+        msg.textContent = "Too low!";
+        play("wrongSound");
+        shake();
+    } else if (guess > number) {
+        msg.textContent = "Too high!";
+        play("wrongSound");
+        shake();
+    } else {
+        msg.textContent = "🎉 Correct!";
+        msg.className = "success";
+        play("correctSound");
+
+        streak++;
+        score += (timeLeft * 2) + (maxAttempts - attempts) * 5 + (streak * 10);
+
+        level++;
+
+        // 🔥 BREAK SYSTEM
+        if (level % 10 === 0) {
+            showBreak();
+            return;
+        }
+
+        saveGame();
+        clearInterval(timer);
+        setTimeout(initLevel, 1000);
+    }
+
+    // ✅ auto-clear input
+    input.value = "";
+
+    if (attempts >= maxAttempts) {
+        loseLife();
+    }
+
+    updateUI();
+}
+
+function loseLife() {
+    lives--;
+    if (lives <= 0) {
+        alert("💀 Game Over!");
+        localStorage.removeItem("gameData");
+        location.reload();
+    } else {
+        alert("❌ Wrong! Life lost.");
+        initLevel();
+    }
+}
+
+function useHint() {
+    if (score < 20) return alert("Not enough score!");
+    score -= 20;
+    let hint = number % 2 === 0 ? "Even" : "Odd";
+    document.getElementById("message").textContent = "Hint: " + hint;
+}
+
+function extraLife() {
+    if (score < 30) return alert("Not enough score!");
+    score -= 30;
+    lives++;
+}
+
+function startTimer(sec) {
+    clearInterval(timer);
+    timeLeft = sec;
+    document.getElementById("timer").textContent = timeLeft;
+
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").textContent = timeLeft;
+
+        if (timeLeft <= 0) loseLife();
+    }, 1000);
+}
+
+function showBreak() {
+    clearInterval(timer);
+
+    document.getElementById("game").style.display = "none";
+    document.getElementById("breakScreen").style.display = "block";
+
+    document.getElementById("breakLevel").textContent = level;
+
+    score += 50;
+    saveGame();
+}
+
+function continueGame() {
+    document.getElementById("breakScreen").style.display = "none";
+    document.getElementById("game").style.display = "block";
+
+    initLevel();
+}
+
+function shake() {
+    const box = document.querySelector(".game-box");
+    box.classList.add("shake");
+    setTimeout(() => box.classList.remove("shake"), 300);
+}
+
+function play(id) {
+    document.getElementById(id).play();
+}
+
+// SAVE SYSTEM
+function saveGame() {
+    localStorage.setItem("gameData", JSON.stringify({
+        level, score, streak, lives, maxNumber
+    }));
+}
+
+function loadGame() {
+    const data = JSON.parse(localStorage.getItem("gameData"));
+    if (data) {
+        level = data.level;
+        score = data.score;
+        streak = data.streak;
+        lives = data.lives;
+        maxNumber = data.maxNumber;
+    }
+}
+</script>
+
+</body>
+</html>
