@@ -11,76 +11,93 @@ body {
     color: white;
     margin: 0;
     height: 100vh;
-
-    /* 🎮 SPACE / GAMING BACKGROUND */
     background: 
         linear-gradient(rgba(10,10,30,0.7), rgba(10,10,30,0.9)),
         url("https://images.unsplash.com/photo-1535223289827-42f1e9919769");
-
     background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
 }
 
-/* 💎 Glass + Glow UI */
+/* UI */
 .game-box {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0,0,0,0.5);
     backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     padding: 20px;
     margin-top: 40px;
     display: inline-block;
     border-radius: 15px;
     width: 90%;
     max-width: 420px;
-
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0,255,255,0.3);
 }
 
-input, button, select {
+input {
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    text-align: center;
+    width: 80%;
+    max-width: 250px;
+}
+
+button {
     padding: 10px;
     margin: 5px;
     border-radius: 8px;
     border: none;
-}
-
-button {
-    background: #00c9ff;
-    color: white;
     cursor: pointer;
+    background: linear-gradient(45deg,#00c9ff,#92fe9d);
+    font-weight: bold;
 }
 button:hover { transform: scale(1.05); }
 
-.success { color: #00ffcc; }
-.shake { animation: shake 0.3s; }
+.selected {
+    background: lime !important;
+    color: black;
+}
 
+.success { color:#00ffcc; }
+
+.shake { animation: shake 0.3s; }
 @keyframes shake {
-    25% { transform: translateX(-5px); }
-    50% { transform: translateX(5px); }
+    25%{transform:translateX(-5px);}
+    50%{transform:translateX(5px);}
+}
+
+.win-effect { animation: glow 0.5s; }
+@keyframes glow {
+    from{box-shadow:0 0 10px cyan;}
+    to{box-shadow:0 0 30px lime;}
 }
 
 .lose-life { animation: blink 0.4s; }
-@keyframes blink { 50% {opacity:0;} }
+@keyframes blink {50%{opacity:0;}}
 </style>
 </head>
 
 <body>
 
-<h1>🎮 Guess Masters Pro</h1>
-
 <div class="game-box">
 
+<!-- HOME -->
+<div id="home">
+<h2>🎮 Guess Masters Pro</h2>
+<p>Test your brain & beat the levels!</p>
+<button onclick="goToSetup()">Start Game</button>
+</div>
+
 <!-- SETUP -->
-<div id="setup">
-<input id="name" placeholder="Your name"><br>
+<div id="setup" style="display:none;">
+  <h2>⚙️ Game Setup</h2>
 
-<select id="difficulty">
-<option value="50">Easy</option>
-<option value="100">Medium</option>
-<option value="500">Hard</option>
-</select><br>
+  <input id="name" placeholder="Enter your name"><br><br>
 
-<button onclick="startGame()">Start</button>
+  <h3>Select Difficulty</h3>
+  <button onclick="selectDifficulty(50)" id="easy">Easy</button>
+  <button onclick="selectDifficulty(100)" id="medium">Medium</button>
+  <button onclick="selectDifficulty(500)" id="hard">Hard</button>
+
+  <br><br>
+  <button onclick="startGame()">🚀 Start Game</button>
 </div>
 
 <!-- GAME -->
@@ -91,33 +108,37 @@ button:hover { transform: scale(1.05); }
 <p>⏱️ <span id="timer"></span> | ❤️ <span id="lives"></span></p>
 <p>🔥 Streak: <span id="streak"></span></p>
 <p>🏆 Score: <span id="score"></span></p>
-<p>🥇 Best: <span id="highScore"></span></p>
-<p>📊 Accuracy: <span id="accuracy"></span>%</p>
 
-<input type="number" id="guessInput" placeholder="Enter guess">
+<input type="number" id="guessInput">
 <button onclick="checkGuess()">Guess</button>
+<button onclick="pauseGame()">⏸️ Pause</button>
 
 <br>
-<button onclick="useHint()">💡 Hint (-20)</button>
-<button onclick="extraLife()">❤️ Life (-30)</button>
+<button onclick="useHint()">💡 Hint</button>
+<button onclick="extraLife()">❤️ Life</button>
 <button onclick="toggleMusic()">🎵 Music</button>
 
 <p id="message"></p>
 </div>
 
+<!-- PAUSE SCREEN -->
+<div id="pauseScreen" style="display:none;">
+<h2>⏸️ Game Paused</h2>
+<button onclick="resumeGame()">▶️ Resume</button>
+</div>
+
 <!-- BREAK -->
 <div id="breakScreen" style="display:none;">
-<h2>⏸️ Break Time!</h2>
-<p>Level <span id="breakLevel"></span> reached</p>
-<p>🎁 +50 Score</p>
+<h2>⏸️ Break</h2>
+<p>Level <span id="breakLevel"></span></p>
 <button onclick="continueGame()">Continue</button>
 </div>
 
 <!-- GAME OVER -->
 <div id="gameOver" style="display:none;">
 <h2>💀 Game Over</h2>
-<p>Your Score: <span id="finalScore"></span></p>
-<button onclick="restartGame()">Play Again</button>
+<p>Score: <span id="finalScore"></span></p>
+<button onclick="restartGame()">Restart</button>
 </div>
 
 </div>
@@ -130,184 +151,182 @@ button:hover { transform: scale(1.05); }
 <script>
 let number, attempts, maxAttempts, maxNumber;
 let level=1, score=0, streak=0, lives=3;
-let correctGuesses=0;
 let timeLeft, timer;
+let paused=false;
+let selectedDifficulty=50;
 
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("guessInput").addEventListener("keypress", e => {
-        if(e.key==="Enter") checkGuess();
-    });
+document.addEventListener("DOMContentLoaded",()=>{
+document.getElementById("guessInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") checkGuess();
+});
 });
 
-function startGame() {
-    const name = document.getElementById("name").value || "Player";
-    maxNumber = Number(document.getElementById("difficulty").value);
-
-    document.getElementById("player").textContent = name;
-    document.getElementById("setup").style.display="none";
-    document.getElementById("game").style.display="block";
-
-    loadGame();
-    initLevel();
-    document.getElementById("bgMusic").play();
+function goToSetup(){
+document.getElementById("home").style.display="none";
+document.getElementById("setup").style.display="block";
 }
 
-function initLevel() {
-    number = Math.floor(Math.random()*maxNumber)+1;
-    attempts=0;
-    maxAttempts=8+level;
-    startTimer(30);
-    updateUI();
+function selectDifficulty(value){
+selectedDifficulty=value;
+
+document.getElementById("easy").classList.remove("selected");
+document.getElementById("medium").classList.remove("selected");
+document.getElementById("hard").classList.remove("selected");
+
+if(value===50) document.getElementById("easy").classList.add("selected");
+if(value===100) document.getElementById("medium").classList.add("selected");
+if(value===500) document.getElementById("hard").classList.add("selected");
 }
 
-function updateUI() {
-    document.getElementById("info").textContent =
-        `Level ${level} | Range: 1-${maxNumber} | Attempts: ${maxAttempts-attempts}`;
-    document.getElementById("score").textContent=score;
-    document.getElementById("streak").textContent=streak;
-    document.getElementById("lives").textContent=lives;
-    document.getElementById("accuracy").textContent =
-        level>1 ? Math.round((correctGuesses/(level-1))*100) : 0;
+function startGame(){
+const name=document.getElementById("name").value||"Player";
+maxNumber=selectedDifficulty;
 
-    let high=localStorage.getItem("highScore")||0;
-    document.getElementById("highScore").textContent=high;
+document.getElementById("player").textContent=name;
+document.getElementById("setup").style.display="none";
+document.getElementById("game").style.display="block";
+
+document.body.addEventListener("click",()=>{
+document.getElementById("bgMusic").play();
+},{once:true});
+
+initLevel();
 }
 
-function checkGuess() {
-    const input=document.getElementById("guessInput");
-    const guess=Number(input.value);
-    const msg=document.getElementById("message");
+function initLevel(){
+number=Math.floor(Math.random()*maxNumber)+1;
+attempts=0;
+maxAttempts=6+Math.floor(level/2);
+startTimer(25-Math.min(level,10));
+updateUI();
+}
 
-    if(!guess){ msg.textContent="Enter valid number!"; return; }
+function updateUI(){
+document.getElementById("info").textContent=`Level ${level}`;
+document.getElementById("score").textContent=score;
+document.getElementById("streak").textContent=streak;
+document.getElementById("lives").textContent=lives;
+}
 
-    attempts++;
+function checkGuess(){
+if(paused) return;
 
-    if(guess<number){
-        msg.textContent="Too low!";
-        play("wrongSound"); shake();
-    } else if(guess>number){
-        msg.textContent="Too high!";
-        play("wrongSound"); shake();
-    } else {
-        msg.textContent="🎉 Correct!";
-        msg.className="success";
-        play("correctSound");
+let input=document.getElementById("guessInput");
+let guess=Number(input.value);
+let msg=document.getElementById("message");
 
-        correctGuesses++;
-        streak++;
-        score += (timeLeft*2)+(maxAttempts-attempts)*5+(streak*10);
+if(!guess) return msg.textContent="Enter number";
 
-        updateHighScore();
+attempts++;
 
-        level++;
+if(Math.abs(guess-number)<=5){
+msg.textContent="🔥 Very close!";
+}
 
-        if(level%10===0){ showBreak(); return; }
+if(guess<number){
+msg.textContent="Too low!";
+play("wrongSound"); shake();
+}else if(guess>number){
+msg.textContent="Too high!";
+play("wrongSound"); shake();
+}else{
+msg.textContent="🎉 Correct!";
+msg.className="success";
 
-        saveGame();
-        clearInterval(timer);
-        setTimeout(initLevel,1000);
-    }
+document.querySelector(".game-box").classList.add("win-effect");
+setTimeout(()=>document.querySelector(".game-box").classList.remove("win-effect"),500);
 
-    input.value="";
+play("correctSound");
 
-    if(attempts>=maxAttempts) loseLife();
+score+=20+timeLeft*2;
+streak++;
+level++;
 
-    updateUI();
+if(level%10===0){ showBreak(); return; }
+
+setTimeout(initLevel,1000);
+}
+
+input.value="";
+
+if(attempts>=maxAttempts) loseLife();
+updateUI();
 }
 
 function loseLife(){
-    lives--;
-    document.getElementById("lives").classList.add("lose-life");
-
-    if(lives<=0){ showGameOver(); }
-    else initLevel();
+lives--;
+if(lives<=0) showGameOver();
+else initLevel();
 }
 
 function useHint(){
-    if(score<20) return alert("Not enough score!");
-    score-=20;
-    let min=Math.max(1,number-10);
-    let max=number+10;
-    document.getElementById("message").textContent=`Between ${min} and ${max}`;
+alert("Range: "+(number-5)+" to "+(number+5));
 }
 
-function extraLife(){
-    if(score<30) return alert("Not enough score!");
-    score-=30; lives++;
-}
+function extraLife(){ lives++; }
 
 function startTimer(sec){
-    clearInterval(timer);
-    timeLeft=sec;
-    document.getElementById("timer").textContent=timeLeft;
+clearInterval(timer);
+timeLeft=sec;
+document.getElementById("timer").textContent=timeLeft;
 
-    timer=setInterval(()=>{
-        timeLeft--;
-        document.getElementById("timer").textContent=timeLeft;
-        if(timeLeft<=0) loseLife();
-    },1000);
+timer=setInterval(()=>{
+if(!paused){
+timeLeft--;
+document.getElementById("timer").textContent=timeLeft;
+if(timeLeft<=0) loseLife();
+}
+},1000);
+}
+
+function pauseGame(){
+paused=true;
+clearInterval(timer);
+document.getElementById("game").style.display="none";
+document.getElementById("pauseScreen").style.display="block";
+}
+
+function resumeGame(){
+paused=false;
+document.getElementById("pauseScreen").style.display="none";
+document.getElementById("game").style.display="block";
+startTimer(timeLeft);
 }
 
 function showBreak(){
-    clearInterval(timer);
-    document.getElementById("game").style.display="none";
-    document.getElementById("breakScreen").style.display="block";
-    document.getElementById("breakLevel").textContent=level;
-    score+=50;
+clearInterval(timer);
+document.getElementById("game").style.display="none";
+document.getElementById("breakScreen").style.display="block";
+document.getElementById("breakLevel").textContent=level;
+score+=50;
 }
 
 function continueGame(){
-    document.getElementById("breakScreen").style.display="none";
-    document.getElementById("game").style.display="block";
-    initLevel();
+document.getElementById("breakScreen").style.display="none";
+document.getElementById("game").style.display="block";
+initLevel();
 }
 
 function showGameOver(){
-    document.getElementById("game").style.display="none";
-    document.getElementById("gameOver").style.display="block";
-    document.getElementById("finalScore").textContent=score;
-    saveGame(true);
+document.getElementById("game").style.display="none";
+document.getElementById("gameOver").style.display="block";
+document.getElementById("finalScore").textContent=score;
 }
 
-function restartGame(){
-    localStorage.removeItem("gameData");
-    location.reload();
-}
-
-function updateHighScore(){
-    let high=localStorage.getItem("highScore")||0;
-    if(score>high) localStorage.setItem("highScore",score);
-}
+function restartGame(){ location.reload(); }
 
 function toggleMusic(){
-    let music=document.getElementById("bgMusic");
-    music.paused ? music.play() : music.pause();
+let m=document.getElementById("bgMusic");
+m.paused?m.play():m.pause();
 }
 
 function shake(){
-    const box=document.querySelector(".game-box");
-    box.classList.add("shake");
-    setTimeout(()=>box.classList.remove("shake"),300);
+let box=document.querySelector(".game-box");
+box.classList.add("shake");
+setTimeout(()=>box.classList.remove("shake"),300);
 }
 
 function play(id){ document.getElementById(id).play(); }
-
-function saveGame(reset=false){
-    if(reset){ localStorage.removeItem("gameData"); return; }
-    localStorage.setItem("gameData",JSON.stringify({
-        level,score,streak,lives,maxNumber,correctGuesses
-    }));
-}
-
-function loadGame(){
-    const data=JSON.parse(localStorage.getItem("gameData"));
-    if(data){
-        level=data.level; score=data.score;
-        streak=data.streak; lives=data.lives;
-        maxNumber=data.maxNumber;
-        correctGuesses=data.correctGuesses||0;
-    }
-}
 </script>
 
 </body>
