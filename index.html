@@ -8,18 +8,33 @@
 body {
     font-family: Arial;
     text-align: center;
-    background: linear-gradient(135deg, #141e30, #243b55);
     color: white;
+    margin: 0;
+    height: 100vh;
+
+    /* 🎮 SPACE / GAMING BACKGROUND */
+    background: 
+        linear-gradient(rgba(10,10,30,0.7), rgba(10,10,30,0.9)),
+        url("https://images.unsplash.com/photo-1535223289827-42f1e9919769");
+
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
 }
 
+/* 💎 Glass + Glow UI */
 .game-box {
-    background: rgba(255,255,255,0.1);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     padding: 20px;
     margin-top: 40px;
     display: inline-block;
     border-radius: 15px;
     width: 90%;
     max-width: 420px;
+
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
 }
 
 input, button, select {
@@ -34,10 +49,7 @@ button {
     color: white;
     cursor: pointer;
 }
-
-button:hover {
-    transform: scale(1.05);
-}
+button:hover { transform: scale(1.05); }
 
 .success { color: #00ffcc; }
 .shake { animation: shake 0.3s; }
@@ -46,6 +58,9 @@ button:hover {
     25% { transform: translateX(-5px); }
     50% { transform: translateX(5px); }
 }
+
+.lose-life { animation: blink 0.4s; }
+@keyframes blink { 50% {opacity:0;} }
 </style>
 </head>
 
@@ -76,6 +91,8 @@ button:hover {
 <p>⏱️ <span id="timer"></span> | ❤️ <span id="lives"></span></p>
 <p>🔥 Streak: <span id="streak"></span></p>
 <p>🏆 Score: <span id="score"></span></p>
+<p>🥇 Best: <span id="highScore"></span></p>
+<p>📊 Accuracy: <span id="accuracy"></span>%</p>
 
 <input type="number" id="guessInput" placeholder="Enter guess">
 <button onclick="checkGuess()">Guess</button>
@@ -83,33 +100,42 @@ button:hover {
 <br>
 <button onclick="useHint()">💡 Hint (-20)</button>
 <button onclick="extraLife()">❤️ Life (-30)</button>
+<button onclick="toggleMusic()">🎵 Music</button>
 
 <p id="message"></p>
 </div>
 
-<!-- BREAK SCREEN -->
+<!-- BREAK -->
 <div id="breakScreen" style="display:none;">
-    <h2>⏸️ Take a Break!</h2>
-    <p>You reached Level <span id="breakLevel"></span> 🎉</p>
-    <p>🎁 Bonus: +50 Score</p>
-    <button onclick="continueGame()">Continue ▶️</button>
+<h2>⏸️ Break Time!</h2>
+<p>Level <span id="breakLevel"></span> reached</p>
+<p>🎁 +50 Score</p>
+<button onclick="continueGame()">Continue</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameOver" style="display:none;">
+<h2>💀 Game Over</h2>
+<p>Your Score: <span id="finalScore"></span></p>
+<button onclick="restartGame()">Play Again</button>
 </div>
 
 </div>
 
-<!-- Sounds -->
+<!-- AUDIO -->
 <audio id="correctSound" src="https://www.soundjay.com/buttons/sounds/button-4.mp3"></audio>
 <audio id="wrongSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
+<audio id="bgMusic" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop></audio>
 
 <script>
 let number, attempts, maxAttempts, maxNumber;
-let level = 1, score = 0, streak = 0, lives = 3;
+let level=1, score=0, streak=0, lives=3;
+let correctGuesses=0;
 let timeLeft, timer;
 
-// ENTER key
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("guessInput").addEventListener("keypress", function(e) {
-        if (e.key === "Enter") checkGuess();
+    document.getElementById("guessInput").addEventListener("keypress", e => {
+        if(e.key==="Enter") checkGuess();
     });
 });
 
@@ -118,163 +144,168 @@ function startGame() {
     maxNumber = Number(document.getElementById("difficulty").value);
 
     document.getElementById("player").textContent = name;
-    document.getElementById("setup").style.display = "none";
-    document.getElementById("game").style.display = "block";
+    document.getElementById("setup").style.display="none";
+    document.getElementById("game").style.display="block";
 
     loadGame();
     initLevel();
+    document.getElementById("bgMusic").play();
 }
 
 function initLevel() {
-    number = Math.floor(Math.random() * maxNumber) + 1;
-    attempts = 0;
-    maxAttempts = 8 + level;
-
+    number = Math.floor(Math.random()*maxNumber)+1;
+    attempts=0;
+    maxAttempts=8+level;
     startTimer(30);
     updateUI();
 }
 
 function updateUI() {
     document.getElementById("info").textContent =
-        `Level ${level} | Range: 1-${maxNumber} | Attempts: ${maxAttempts - attempts}`;
-    document.getElementById("score").textContent = score;
-    document.getElementById("streak").textContent = streak;
-    document.getElementById("lives").textContent = lives;
+        `Level ${level} | Range: 1-${maxNumber} | Attempts: ${maxAttempts-attempts}`;
+    document.getElementById("score").textContent=score;
+    document.getElementById("streak").textContent=streak;
+    document.getElementById("lives").textContent=lives;
+    document.getElementById("accuracy").textContent =
+        level>1 ? Math.round((correctGuesses/(level-1))*100) : 0;
+
+    let high=localStorage.getItem("highScore")||0;
+    document.getElementById("highScore").textContent=high;
 }
 
 function checkGuess() {
-    const input = document.getElementById("guessInput");
-    const guess = Number(input.value);
-    const msg = document.getElementById("message");
+    const input=document.getElementById("guessInput");
+    const guess=Number(input.value);
+    const msg=document.getElementById("message");
 
-    if (!guess) {
-        msg.textContent = "Enter valid number!";
-        return;
-    }
+    if(!guess){ msg.textContent="Enter valid number!"; return; }
 
     attempts++;
 
-    if (guess < number) {
-        msg.textContent = "Too low!";
-        play("wrongSound");
-        shake();
-    } else if (guess > number) {
-        msg.textContent = "Too high!";
-        play("wrongSound");
-        shake();
+    if(guess<number){
+        msg.textContent="Too low!";
+        play("wrongSound"); shake();
+    } else if(guess>number){
+        msg.textContent="Too high!";
+        play("wrongSound"); shake();
     } else {
-        msg.textContent = "🎉 Correct!";
-        msg.className = "success";
+        msg.textContent="🎉 Correct!";
+        msg.className="success";
         play("correctSound");
 
+        correctGuesses++;
         streak++;
-        score += (timeLeft * 2) + (maxAttempts - attempts) * 5 + (streak * 10);
+        score += (timeLeft*2)+(maxAttempts-attempts)*5+(streak*10);
+
+        updateHighScore();
 
         level++;
 
-        // 🔥 BREAK SYSTEM
-        if (level % 10 === 0) {
-            showBreak();
-            return;
-        }
+        if(level%10===0){ showBreak(); return; }
 
         saveGame();
         clearInterval(timer);
-        setTimeout(initLevel, 1000);
+        setTimeout(initLevel,1000);
     }
 
-    // ✅ auto-clear input
-    input.value = "";
+    input.value="";
 
-    if (attempts >= maxAttempts) {
-        loseLife();
-    }
+    if(attempts>=maxAttempts) loseLife();
 
     updateUI();
 }
 
-function loseLife() {
+function loseLife(){
     lives--;
-    if (lives <= 0) {
-        alert("💀 Game Over!");
-        localStorage.removeItem("gameData");
-        location.reload();
-    } else {
-        alert("❌ Wrong! Life lost.");
-        initLevel();
-    }
+    document.getElementById("lives").classList.add("lose-life");
+
+    if(lives<=0){ showGameOver(); }
+    else initLevel();
 }
 
-function useHint() {
-    if (score < 20) return alert("Not enough score!");
-    score -= 20;
-    let hint = number % 2 === 0 ? "Even" : "Odd";
-    document.getElementById("message").textContent = "Hint: " + hint;
+function useHint(){
+    if(score<20) return alert("Not enough score!");
+    score-=20;
+    let min=Math.max(1,number-10);
+    let max=number+10;
+    document.getElementById("message").textContent=`Between ${min} and ${max}`;
 }
 
-function extraLife() {
-    if (score < 30) return alert("Not enough score!");
-    score -= 30;
-    lives++;
+function extraLife(){
+    if(score<30) return alert("Not enough score!");
+    score-=30; lives++;
 }
 
-function startTimer(sec) {
+function startTimer(sec){
     clearInterval(timer);
-    timeLeft = sec;
-    document.getElementById("timer").textContent = timeLeft;
+    timeLeft=sec;
+    document.getElementById("timer").textContent=timeLeft;
 
-    timer = setInterval(() => {
+    timer=setInterval(()=>{
         timeLeft--;
-        document.getElementById("timer").textContent = timeLeft;
-
-        if (timeLeft <= 0) loseLife();
-    }, 1000);
+        document.getElementById("timer").textContent=timeLeft;
+        if(timeLeft<=0) loseLife();
+    },1000);
 }
 
-function showBreak() {
+function showBreak(){
     clearInterval(timer);
-
-    document.getElementById("game").style.display = "none";
-    document.getElementById("breakScreen").style.display = "block";
-
-    document.getElementById("breakLevel").textContent = level;
-
-    score += 50;
-    saveGame();
+    document.getElementById("game").style.display="none";
+    document.getElementById("breakScreen").style.display="block";
+    document.getElementById("breakLevel").textContent=level;
+    score+=50;
 }
 
-function continueGame() {
-    document.getElementById("breakScreen").style.display = "none";
-    document.getElementById("game").style.display = "block";
-
+function continueGame(){
+    document.getElementById("breakScreen").style.display="none";
+    document.getElementById("game").style.display="block";
     initLevel();
 }
 
-function shake() {
-    const box = document.querySelector(".game-box");
+function showGameOver(){
+    document.getElementById("game").style.display="none";
+    document.getElementById("gameOver").style.display="block";
+    document.getElementById("finalScore").textContent=score;
+    saveGame(true);
+}
+
+function restartGame(){
+    localStorage.removeItem("gameData");
+    location.reload();
+}
+
+function updateHighScore(){
+    let high=localStorage.getItem("highScore")||0;
+    if(score>high) localStorage.setItem("highScore",score);
+}
+
+function toggleMusic(){
+    let music=document.getElementById("bgMusic");
+    music.paused ? music.play() : music.pause();
+}
+
+function shake(){
+    const box=document.querySelector(".game-box");
     box.classList.add("shake");
-    setTimeout(() => box.classList.remove("shake"), 300);
+    setTimeout(()=>box.classList.remove("shake"),300);
 }
 
-function play(id) {
-    document.getElementById(id).play();
-}
+function play(id){ document.getElementById(id).play(); }
 
-// SAVE SYSTEM
-function saveGame() {
-    localStorage.setItem("gameData", JSON.stringify({
-        level, score, streak, lives, maxNumber
+function saveGame(reset=false){
+    if(reset){ localStorage.removeItem("gameData"); return; }
+    localStorage.setItem("gameData",JSON.stringify({
+        level,score,streak,lives,maxNumber,correctGuesses
     }));
 }
 
-function loadGame() {
-    const data = JSON.parse(localStorage.getItem("gameData"));
-    if (data) {
-        level = data.level;
-        score = data.score;
-        streak = data.streak;
-        lives = data.lives;
-        maxNumber = data.maxNumber;
+function loadGame(){
+    const data=JSON.parse(localStorage.getItem("gameData"));
+    if(data){
+        level=data.level; score=data.score;
+        streak=data.streak; lives=data.lives;
+        maxNumber=data.maxNumber;
+        correctGuesses=data.correctGuesses||0;
     }
 }
 </script>
